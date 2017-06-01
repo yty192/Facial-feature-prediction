@@ -18,9 +18,9 @@ totalSamples = sum(fileLength)
 
 featureNumber = 17
 # predictTime = 1
-predictTimeList = range(1,11)  # How many previous time do we use to predict next second
-layerNumberList = range(1,6)   # How many hidden layers
-classNumber = 10  # How many class in non-zero labels
+predictTimeList = range(3,4)  # How many previous time do we use to predict next second
+layerNumberList = range(4,5)   # How many hidden layers
+classNumber = 100  # How many class in non-zero labels
 classNumberList = [2,5,10,20,50,70,100]
 totalAccuracy = np.zeros(len(classNumberList))
 iterationNumber = 1
@@ -208,36 +208,38 @@ for iteration in range(iterationNumber):
             # print (scoreNonZero)
 
 
-            # # all data classification
-            #
-            # y_all_train_vectors = keras.utils.to_categorical(y_all_train, num_classes=101)
-            # y_all_test_vectors = keras.utils.to_categorical(y_all_test, num_classes=101)
-            # # build a forward neural network
-            # modelAll = Sequential()
-            # modelAll.add(InputLayer(input_shape=(x_all_train.shape[1], x_all_train.shape[2])))
-            # modelAll.add(Flatten())
-            # for i in range(layerNumber):
-            #     modelAll.add(Dense(128, activation='relu', name="dense" + str(i + 1)))
-            # modelAll.add(Dense(101, activation='softmax', name="output"))
-            #
-            # modelAll.compile(loss='categorical_crossentropy',
-            #                      optimizer='adam',
-            #                      metrics=['accuracy'])
-            #
-            # # modelAll.summary()
-            # earlyStop = keras.callbacks.EarlyStopping(monitor='val_loss', min_delta=0, patience=0, verbose=0,
-            #                                           mode='auto')
-            # modelAll.fit(x_all_train, y_all_train_vectors,
-            #                  epochs=10,
-            #                  batch_size=256,
-            #                  validation_data=(x_all_test, y_all_test_vectors),
-            #                  callbacks=[earlyStop])
-            # scoreAll = modelAll.evaluate(x_all_test, y_all_test_vectors, batch_size=256)
+            # all data classification
+
+            y_all_train_vectors = keras.utils.to_categorical(y_all_train, num_classes=101)
+            y_all_test_vectors = keras.utils.to_categorical(y_all_test, num_classes=101)
+            # build a forward neural network
+            modelAll = Sequential()
+            modelAll.add(InputLayer(input_shape=(x_all_train.shape[1], x_all_train.shape[2])))
+            modelAll.add(Flatten())
+            for i in range(layerNumber):
+                modelAll.add(Dense(128, activation='relu', name="dense" + str(i + 1)))
+            modelAll.add(Dense(101, activation='softmax', name="output"))
+
+            modelAll.compile(loss='categorical_crossentropy',
+                                 optimizer='adam',
+                                 metrics=['accuracy'])
+
+            # modelAll.summary()
+            earlyStop = keras.callbacks.EarlyStopping(monitor='val_loss', min_delta=0, patience=0, verbose=0,
+                                                      mode='auto')
+            modelAll.fit(x_all_train, y_all_train_vectors,
+                             epochs=10,
+                             batch_size=256,
+                             validation_data=(x_all_test, y_all_test_vectors),
+                             callbacks=[earlyStop])
+            scoreAll = modelAll.evaluate(x_all_test, y_all_test_vectors, batch_size=256)
             # predictResult = modelAll.predict(x_All_test, batch_size=256)
             # resultAll[predictIndex, layerIndex] = scoreAll[1]
             # modelAll.save(filepath="model/allModel_predictTime" + str(predictTime) + "_layerNumber" + str(layerNumber) + ".hdf5")
 
-            # print (scoreAll)
+            print (scoreAll)
+
+
 
             # # Stacked LSTM for sequence classification
             #
@@ -280,14 +282,30 @@ for iteration in range(iterationNumber):
     binaryPredict[binaryPredict<0.5] = 0
     binaryPredict = binaryPredict.flatten()
 
+    # prediction result of all model
+    allPredict = modelAll.predict(x_all_test)
+    allPredict = np.argmax(allPredict, axis=1)
+
+
+
+
     # how many 0 and 1 are correctly predicted
     countCorrectBinaryWithOne = 0
     countCorrectBinaryWithZero = 0
+
+    # how many 1 are wrongly predicted as 0
+    countWrongZeroTwoFNN = 0
+    countWrongZeroOneFNN = 0
+
     for i in range(len(binaryPredict)):
         if binaryPredict[i] == y_binary_test[i] and y_binary_test[i] == 1:
             countCorrectBinaryWithOne = countCorrectBinaryWithOne + 1
         if binaryPredict[i] == y_binary_test[i] and y_binary_test[i] == 0:
             countCorrectBinaryWithZero = countCorrectBinaryWithZero + 1
+        if binaryPredict[i] == 0 and y_binary_test[i] == 1:
+            countWrongZeroTwoFNN = countWrongZeroTwoFNN + 1
+        if allPredict[i] == 0 and y_all_test[i] != 0:
+            countWrongZeroOneFNN = countWrongZeroOneFNN + 1
 
     # construct the data set to do the categorical prediction from the correctly predicted data by binary model
     x_nonZeroTobePredict = np.zeros((countCorrectBinaryWithOne, predictTime, featureNumber-1))
@@ -308,8 +326,8 @@ for iteration in range(iterationNumber):
 
 # print totalAccuracy
 # np.savez('totalAccuracyWithClasses',totalAccuracy=totalAccuracy)
-    np.savez('result/resultPredictTimeLayer000',
-            resultBinary=resultBinary,
-            resultNonZero=resultNonZero,
-            layerNumberList=layerNumberList,
-            predictTimeList=predictTimeList)
+#     np.savez('result/resultPredictTimeLayer000',
+#             resultBinary=resultBinary,
+#             resultNonZero=resultNonZero,
+#             layerNumberList=layerNumberList,
+#             predictTimeList=predictTimeList)

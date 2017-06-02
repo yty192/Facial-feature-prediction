@@ -37,32 +37,12 @@ for classNumber in classNumberList:
             self.samples = np.zeros((predictTime,featureNumber-1))
             self.label = 0.0
 
-    # length of all data
-    dataAllLength = dataAll.shape[0]
 
     # length of all data set
-    dataSetListLength = dataAllLength - predictTime
-
-    # length of non zero label data set
-    nonZeroLength = np.count_nonzero(labelDataRound)
-
-    # tensor of data sets corresponding to all label (for binary training)
-    dataSetTensor = np.zeros((dataSetListLength, predictTime, featureNumber-1))
-
-    # tensor of data set corresponding to non zero labels
-    dataSetTensorNonZero = np.zeros((nonZeroLength,predictTime,featureNumber-1))
-
-    # list of labels corresponding to tensor of data sets
-    labelList = np.zeros(dataSetListLength)
-
-    # list of binary labels
-    labelListBinary = np.zeros(dataSetListLength)
-
-    # list of non zero labels
-    labelListNonZero = np.zeros(nonZeroLength)
+    dataSetListLength = sum(fileLength - predictTime)
 
     # list of all data set
-    dataSetList = [dataSet() for i in range(dataAllLength - predictTime)]
+    dataSetList = [dataSet() for i in range(dataSetListLength)]
 
     # fill up the list of all data set
     fileStart = 0
@@ -73,9 +53,6 @@ for classNumber in classNumberList:
             dataSetList[countdataset].samples = dataUnify[j:j + predictTime, :]
             dataSetList[countdataset].label = labelDataRound[j + predictTime]
         fileStart = fileStart + i
-    # for i in range(len(dataSetList)):
-    #     dataSetList[i].samples = dataUnify[i:i+predictTime,:]
-    #     dataSetList[i].label = labelDataRound[i+predictTime]
 
     # shuffle the list of data set
     np.random.shuffle(dataSetList)
@@ -86,30 +63,42 @@ for classNumber in classNumberList:
     dataTest = dataSetList[boundaryIndex:]
 
     # construct the tensors and labels
+    # input of single FNN system
     x_all_train = np.zeros((len(dataTrain), predictTime, featureNumber - 1))
     x_all_test = np.zeros((len(dataTest), predictTime, featureNumber - 1))
+
+    # input of binary FNN
     x_binary_train = np.zeros((len(dataTrain), predictTime, featureNumber - 1))
     x_binary_test = np.zeros((len(dataTest), predictTime, featureNumber - 1))
+
+    # label of single FNN system
     y_all_train = np.zeros(len(dataTrain))
     y_all_test = np.zeros(len(dataTest))
+
+    # label of binary FNN
     y_binary_train = np.zeros(len(dataTrain))
     y_binary_test = np.zeros(len(dataTest))
 
+    # get the number of non-zero labels
+    # traning
     nonZeroCountTrain = 0
     for i in range(len(dataTrain)):
         if dataTrain[i].label != 0:
             nonZeroCountTrain = nonZeroCountTrain + 1
-
+    # testing
     nonZeroCountTest = 0
     for i in range(len(dataTest)):
         if dataTest[i].label != 0:
             nonZeroCountTest = nonZeroCountTest + 1
 
+    # input and labels of categorical FNN
     x_nonZero_train = np.zeros((nonZeroCountTrain, predictTime, featureNumber - 1))
     x_nonZero_test = np.zeros((nonZeroCountTest, predictTime, featureNumber - 1))
     y_nonZero_train = np.zeros(nonZeroCountTrain)
     y_nonZero_test = np.zeros(nonZeroCountTest)
 
+    # construct all inputs and labels
+    # training part
     nonZeroCount = -1
     for i in range(len(dataTrain)):
         x_binary_train[i, :, :] = dataTrain[i].samples
@@ -124,6 +113,7 @@ for classNumber in classNumberList:
             y_nonZero_train[nonZeroCount] = dataTrain[i].label
             x_nonZero_train[nonZeroCount, :, :] = dataTrain[i].samples
 
+    # testing part
     nonZeroCount = -1
     for i in range(len(dataTest)):
         x_binary_test[i, :, :] = dataTest[i].samples
@@ -138,11 +128,9 @@ for classNumber in classNumberList:
             y_nonZero_test[nonZeroCount] = dataTest[i].label
             x_nonZero_test[nonZeroCount, :, :] = dataTest[i].samples
 
-    # non zero classification
-
+    # non zero FNN
     y_nonZero_train_vectors = keras.utils.to_categorical(y_nonZero_train - 1, num_classes=classNumber)
     y_nonZero_test_vectors = keras.utils.to_categorical(y_nonZero_test - 1, num_classes=classNumber)
-    # build a forward neural network
     modelNonZero = Sequential()
     modelNonZero.add(InputLayer(input_shape=(x_nonZero_train.shape[1], x_nonZero_train.shape[2])))
     modelNonZero.add(Flatten())

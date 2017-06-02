@@ -7,7 +7,7 @@ from keras.models import Sequential
 from keras.layers import Dense, Dropout
 from keras.layers import InputLayer, Flatten, LSTM
 
-# Load data and set train and test
+# Load data
 load_data = np.load('arrangedData.npz')
 
 dataAll = load_data['dataAll']
@@ -30,6 +30,7 @@ for iteration in range(iterationNumber):
 # for classNumber in classNumberList:
     classIndex = classIndex + 1
 
+    # save results of different historical time tags and layer numbers
     resultBinary = np.zeros((len(predictTimeList),len(layerNumberList)))
     resultNonZero = np.zeros((len(predictTimeList),len(layerNumberList)))
 
@@ -40,85 +41,74 @@ for iteration in range(iterationNumber):
     predictIndex = -1
     for predictTime in predictTimeList:
         predictIndex = predictIndex + 1
-        # one data set contains samples of features and one label
+
+        # one data set contains one sample of features and one label
         class dataSet:
             def __init__(self):
                 self.samples = np.zeros((predictTime,featureNumber-1))
                 self.label = 0.0
 
-        # length of all data
-        dataAllLength = dataAll.shape[0]
-
         # length of all data set
         dataSetListLength = sum(fileLength - predictTime)
-
-        # length of non zero label data set
-        nonZeroLength = np.count_nonzero(labelDataRound)
-
-        # tensor of data sets corresponding to all label (for binary training)
-        dataSetTensor = np.zeros((dataSetListLength, predictTime, featureNumber-1))
-
-        # tensor of data set corresponding to non zero labels
-        dataSetTensorNonZero = np.zeros((nonZeroLength,predictTime,featureNumber-1))
-
-        # list of labels corresponding to tensor of data sets
-        labelList = np.zeros(dataSetListLength)
-
-        # list of binary labels
-        labelListBinary = np.zeros(dataSetListLength)
-
-        # list of non zero labels
-        labelListNonZero = np.zeros(nonZeroLength)
 
         # list of all data set
         dataSetList = [dataSet() for i in range(dataSetListLength)]
 
-        # fill up the list of all data set
+        # fill up the list of all data set through each file with number historical time tags
         fileStart = 0
-        countdataset = -1
+        countDataset = -1
         for i in fileLength:
             for j in range(fileStart,fileStart+i-predictTime):
-                countdataset = countdataset + 1
-                dataSetList[countdataset].samples = dataUnify[j:j + predictTime, :]
-                dataSetList[countdataset].label = labelDataRound[j + predictTime]
+                countDataset = countDataset + 1
+                dataSetList[countDataset].samples = dataUnify[j:j + predictTime, :]
+                dataSetList[countDataset].label = labelDataRound[j + predictTime]
             fileStart = fileStart + i
-        # for i in range(len(dataSetList)):
-        #     dataSetList[i].samples = dataUnify[i:i+predictTime,:]
-        #     dataSetList[i].label = labelDataRound[i+predictTime]
 
         # shuffle the list of data set
         np.random.shuffle(dataSetList)
 
-        # take 75 percent as training, 25 percent as testing
+        # take 75 percent as training (dataTrain), 25 percent as testing (dataTest)
         boundaryIndex = int(np.round(0.75 * dataSetListLength))
         dataTrain = dataSetList[:boundaryIndex]
         dataTest = dataSetList[boundaryIndex:]
 
         # construct the tensors and labels
+        # input of single FNN system
         x_all_train = np.zeros((len(dataTrain), predictTime, featureNumber-1))
         x_all_test = np.zeros((len(dataTest), predictTime, featureNumber - 1))
+
+        # input of binary FNN
         x_binary_train = np.zeros((len(dataTrain), predictTime, featureNumber - 1))
         x_binary_test = np.zeros((len(dataTest), predictTime, featureNumber - 1))
+
+        # label of single FNN system
         y_all_train = np.zeros(len(dataTrain))
         y_all_test = np.zeros(len(dataTest))
+
+        # label of binary FNN
         y_binary_train = np.zeros(len(dataTrain))
         y_binary_test = np.zeros(len(dataTest))
 
+        # get the number of non-zero labels
+        # traning
         nonZeroCountTrain = 0
         for i in range(len(dataTrain)):
             if dataTrain[i].label != 0:
                 nonZeroCountTrain = nonZeroCountTrain + 1
-
+        # testing
         nonZeroCountTest = 0
         for i in range(len(dataTest)):
             if dataTest[i].label != 0:
                 nonZeroCountTest = nonZeroCountTest + 1
 
+        # input and labels of categorical FNN
         x_nonZero_train = np.zeros((nonZeroCountTrain, predictTime, featureNumber - 1))
         x_nonZero_test = np.zeros((nonZeroCountTest, predictTime, featureNumber - 1))
         y_nonZero_train = np.zeros(nonZeroCountTrain)
         y_nonZero_test = np.zeros(nonZeroCountTest)
 
+        # construct all inputs and labels
+        # training part
         nonZeroCount = -1
         for i in range(len(dataTrain)):
             x_binary_train[i,:,:] = dataTrain[i].samples
@@ -133,6 +123,7 @@ for iteration in range(iterationNumber):
                 y_nonZero_train[nonZeroCount] = dataTrain[i].label
                 x_nonZero_train[nonZeroCount,:,:] = dataTrain[i].samples
 
+        # testing part
         nonZeroCount = -1
         for i in range(len(dataTest)):
             x_binary_test[i, :, :] = dataTest[i].samples
@@ -147,41 +138,40 @@ for iteration in range(iterationNumber):
                 y_nonZero_test[nonZeroCount] = dataTest[i].label
                 x_nonZero_test[nonZeroCount, :, :] = dataTest[i].samples
 
+        # Build FNN
         layerIndex = -1
         for layerNumber in layerNumberList:
             layerIndex = layerIndex + 1
 
-            # binary classification
-            # build a forward neural network
-            model = Sequential()
-            model.add(InputLayer(input_shape=(x_binary_train.shape[1], x_binary_train.shape[2])))
-            model.add(Flatten())
+            # binary FNN
+            modelBinary = Sequential()
+            modelBinary.add(InputLayer(input_shape=(x_binary_train.shape[1], x_binary_train.shape[2])))
+            modelBinary.add(Flatten())
             for i in range(layerNumber):
-                model.add(Dense(128, activation='relu', name="dense"+str(i+1)))
-            model.add(Dense(1, activation='sigmoid', name="output"))
+                modelBinary.add(Dense(128, activation='relu', name="dense"+str(i+1)))
+            modelBinary.add(Dense(1, activation='sigmoid', name="output"))
 
-            model.compile(loss='binary_crossentropy',
+            modelBinary.compile(loss='binary_crossentropy',
                           optimizer='adam',
                           metrics=['accuracy'])
 
             # model.summary()
             earlyStop = keras.callbacks.EarlyStopping(monitor='val_loss', min_delta=0, patience=0, verbose=0, mode='auto')
-            model.fit(x_binary_train, y_binary_train,
+            modelBinary.fit(x_binary_train, y_binary_train,
                       epochs=10,
                       batch_size=256,
                       validation_data=(x_binary_test, y_binary_test),
                       callbacks=[earlyStop])
-            scoreBinary = model.evaluate(x_binary_test, y_binary_test, batch_size=256)
+            scoreBinary = modelBinary.evaluate(x_binary_test, y_binary_test, batch_size=256)
             resultBinary[predictIndex,layerIndex] = scoreBinary[1]
             # model.save(filepath="model/binaryModel_predictTime"+str(predictTime)+"_layerNumber"+str(layerNumber)+".hdf5")
 
             # print (scoreBinary)
 
 
-            # non zero classification
+            # non zero FNN
             y_nonZero_train_vectors = keras.utils.to_categorical(y_nonZero_train - 1, num_classes=classNumber)
             y_nonZero_test_vectors = keras.utils.to_categorical(y_nonZero_test - 1, num_classes=classNumber)
-            # build a forward neural network
             modelNonZero = Sequential()
             modelNonZero.add(InputLayer(input_shape=(x_nonZero_train.shape[1], x_nonZero_train.shape[2])))
             modelNonZero.add(Flatten())
@@ -208,8 +198,7 @@ for iteration in range(iterationNumber):
             # print (scoreNonZero)
 
 
-            # all data classification
-
+            # single FNN for all classes
             y_all_train_vectors = keras.utils.to_categorical(y_all_train, num_classes=101)
             y_all_test_vectors = keras.utils.to_categorical(y_all_test, num_classes=101)
             # build a forward neural network
@@ -237,11 +226,11 @@ for iteration in range(iterationNumber):
             # resultAll[predictIndex, layerIndex] = scoreAll[1]
             # modelAll.save(filepath="model/allModel_predictTime" + str(predictTime) + "_layerNumber" + str(layerNumber) + ".hdf5")
 
-            print (scoreAll)
+            # print (scoreAll)
 
 
 
-            # # Stacked LSTM for sequence classification
+            # # A trial of Stacked LSTM for sequence classification
             #
             #
             # # input and label
@@ -273,21 +262,16 @@ for iteration in range(iterationNumber):
             #           validation_data=(x_nonZero_test, y_nonZero_test))
 
 
-            # for i in range(x_all_test.shape[0]):
-            #     model.predict(x_all_test[i])
 
     # prediction result of binary model
-    binaryPredict = model.predict(x_binary_test)
+    binaryPredict = modelBinary.predict(x_binary_test)
     binaryPredict[binaryPredict>0.5] = 1
     binaryPredict[binaryPredict<0.5] = 0
     binaryPredict = binaryPredict.flatten()
 
-    # prediction result of all model
+    # prediction result of single FNN model
     allPredict = modelAll.predict(x_all_test)
     allPredict = np.argmax(allPredict, axis=1)
-
-
-
 
     # how many 0 and 1 are correctly predicted
     countCorrectBinaryWithOne = 0
